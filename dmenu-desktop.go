@@ -104,7 +104,7 @@ func read_cache(path string) ([]App, int64, error) {
 		return nil, 0, err
 	}
 
-	return clean_cache(data), info.ModTime().Unix(), nil
+	return data, info.ModTime().Unix(), nil
 }
 
 func write_cache(path string, data []App) error {
@@ -131,10 +131,10 @@ func write_cache(path string, data []App) error {
 	return nil
 }
 
-func clean_cache(apps []App) []App {
+func clean_cache(apps []App, cache_time int64) []App {
 	var clean_apps []App
 	for _, app := range apps {
-		if _, err := os.Stat(app.File); err == nil {
+		if info, err := os.Stat(app.File); err == nil && info.ModTime().Unix() < cache_time {
 			clean_apps = append(clean_apps, app)
 		}
 	}
@@ -383,6 +383,7 @@ func main() {
 		if err != nil {
 			log.Print("Failed to load cache")
 		}
+		cached_apps = clean_cache(cached_apps, time)
 	}
 
 	for _, dir := range dirs {
@@ -429,11 +430,6 @@ func main() {
 				!(slices.Contains(cached_apps, app) && !slices.Contains(cached_apps, found)) {
 				delete(apps_by_name, found.Name)
 				number_per_name[found.Name] -= 1
-				if app.File == found.File && !slices.Contains(cached_apps, app) {
-					delete(apps_by_id, found.Id)
-					index := slices.Index(apps, found)
-					apps = slices.Delete(apps, index, index + 1)
-				}
 			} else {
 				add = false
 			}
