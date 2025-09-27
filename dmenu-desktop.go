@@ -174,15 +174,16 @@ func get_details(path string, lang string, wg *sync.WaitGroup, apps chan<- App) 
 		return
 	}
 
-	if strings.Contains(desktop_entry, "Hidden=true") ||
-		strings.Contains(desktop_entry, "NoDisplay=true") ||
-		!strings.Contains(desktop_entry, "Type=Application") {
+	re := regexp.MustCompile("(?m)^(NoDisplay|Hidden)=true$")
+
+	if re.MatchString(desktop_entry) ||
+		!regexp.MustCompile("(?m)^Type=Application").MatchString(desktop_entry) {
 		return
 	}
 
 	id := strings.ReplaceAll(filepath.Base(path), ".desktop", "")
 
-	re := regexp.MustCompile(fmt.Sprintf(`(?m)^Name\[%s\]=.*`, lang))
+	re = regexp.MustCompile(fmt.Sprintf(`(?m)^Name\[%s\]=.*`, lang))
 	matches := re.FindStringSubmatch(desktop_entry)
 	if len(matches) > 0 {
 		apps <- App{
