@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"syscall"
 
 	"io/fs"
 	"log"
@@ -153,7 +154,7 @@ func get_desktop_string(path string) (string, error) {
 		return "", err
 	}
 
-	re := regexp.MustCompile(`(?s)^\[Desktop Entry\](.*?)(^\[|\z)`)
+	re := regexp.MustCompile(`(?s)(?m)^\[Desktop Entry\](.*?)(^\[|\z)`)
 	matches := re.FindStringSubmatch(string(byte_data))
 	if len(matches) == 0 {
 		return "", nil
@@ -181,7 +182,7 @@ func get_details(path string, lang string, wg *sync.WaitGroup, apps chan<- App) 
 
 	id := strings.ReplaceAll(filepath.Base(path), ".desktop", "")
 
-	re := regexp.MustCompile(fmt.Sprintf(`Name\[%s\]=.*`, lang))
+	re := regexp.MustCompile(fmt.Sprintf(`(?m)^Name\[%s\]=.*`, lang))
 	matches := re.FindStringSubmatch(desktop_entry)
 	if len(matches) > 0 {
 		apps <- App{
@@ -191,7 +192,7 @@ func get_details(path string, lang string, wg *sync.WaitGroup, apps chan<- App) 
 			id,
 		}
 	} else {
-		re = regexp.MustCompile("Name=.*")
+		re = regexp.MustCompile("(?m)^Name=.*")
 		matches = re.FindStringSubmatch(desktop_entry)
 		if len(matches) > 0 {
 			apps <- App{strings.Replace(matches[0], "Name=", "", 1), path, id}
@@ -199,16 +200,8 @@ func get_details(path string, lang string, wg *sync.WaitGroup, apps chan<- App) 
 	}
 }
 
-func find_files(path string, time int64, wg *sync.WaitGroup, files_chan chan<- []string) {
+func find_files(path string, cache_time int64, wg *sync.WaitGroup, files_chan chan<- []string) {
 	defer wg.Done()
-
-	info, err := os.Stat(path)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if time > info.ModTime().Unix() {
-		return
-	}
 
 	var files []string
 
@@ -218,9 +211,21 @@ func find_files(path string, time int64, wg *sync.WaitGroup, files_chan chan<- [
 		}
 
 		if info, err := dir.Info(); err == nil {
+			var creation_time int64
+			mod_time := info.ModTime().Unix()
+
+			switch stats := info.Sys().(type) {
+			case *syscall.Stat_t:
+				creation_time = stats.Ctim.Sec
+			case *unix.Stat_t:
+				creation_time = stats.Ctim.Sec
+			default:
+				creation_time = mod_time
+			}
+
 			if (info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0) &&
 				strings.EqualFold(filepath.Ext(dir.Name()), ".desktop") &&
-				info.ModTime().Unix() > time {
+				(mod_time > cache_time || creation_time > cache_time) {
 				files = append(files, file)
 			}
 		}
@@ -229,6 +234,23 @@ func find_files(path string, time int64, wg *sync.WaitGroup, files_chan chan<- [
 	})
 
 	files_chan <- files
+}
+
+func split_args(command string) []string {
+	re := regexp.MustCompile(`(\s*(\\\s|[^\s])+|\s'[^']*'|\s"[^"]*")`)
+	matches := re.FindAllString(command, -1)
+
+	for i, v := range matches {
+		v = strings.TrimSpace(v)
+		// re := regexp.MustCompile(`\\+`)
+		// v = re.ReplaceAllString(v, `\`)
+		v = strings.ReplaceAll(v, `\\`, `\`)
+		v = strings.ReplaceAll(v, `"`, "")
+		v = strings.ReplaceAll(v, `'`, "")
+		matches[i] = v
+	}
+
+	return matches
 }
 
 func run_desktop(path string, config Config) error {
@@ -240,7 +262,7 @@ func run_desktop(path string, config Config) error {
 		return fmt.Errorf("%s is invalid", path)
 	}
 
-	re := regexp.MustCompile("Exec=.*")
+	re := regexp.MustCompile("(?m)^Exec=.*")
 	matches := re.FindStringSubmatch(desktop_entry)
 	if len(matches) == 0 {
 		return fmt.Errorf("%s has no Exec key", path)
@@ -254,12 +276,13 @@ func run_desktop(path string, config Config) error {
 		command = strings.Split(config.TerminalCommand, " ")
 		command = append(command, command_string)
 	} else {
-		command = strings.Split(command_string, " ")
+		command = split_args(command_string)
 	}
 
-	re = regexp.MustCompile("^Path=.*")
+	re = regexp.MustCompile("(?m)^Path=.*")
 	matches = re.FindStringSubmatch(desktop_entry)
 	if len(matches) != 0 {
+		log.Print(matches[0])
 		os.Chdir(strings.Replace(matches[0], "Path=", "", 1))
 	}
 
@@ -269,14 +292,19 @@ func run_desktop(path string, config Config) error {
 }
 
 func Exec(command []string) error {
-	for i, value := range command {
-		if strings.Contains(value, "=") {
+	env_pos := 0
+	for _, value := range command {
+		i := slices.Index(command, value)
+		fmt.Printf("%s\n", value)
+		if strings.Contains(value, "=") && i == env_pos {
 			command = slices.Delete(command, i, i + 1)
 			variable := strings.Split(value, "=")
 			os.Setenv(variable[0], variable[1])
+			env_pos += 1
 		}
 	}
 
+	log.Print(command)
 	cmd := exec.Command("which", command[0])
 	output, err := cmd.Output()
 	if err != nil {
@@ -294,7 +322,7 @@ func Exec(command []string) error {
 func run(name string, config Config, apps map[string]App) error {
 	if alias, exists := config.Aliases[name]; exists {
 		if !alias.IsDesktop {
-			command := strings.Split(alias.Command, " ")
+			command := split_args(alias.Command)
 			err := Exec(command)
 
 			return err
@@ -311,7 +339,7 @@ func run(name string, config Config, apps map[string]App) error {
 		return err
 	}
 
-	command := strings.Split(name, " ")
+	command := split_args(name)
 	err := Exec(command)
 
 	return err
@@ -323,10 +351,8 @@ func main() {
 	args := os.Args
 	re := regexp.MustCompile("_.*")
 
-	// config_path := filepath.Join(home, ".config_path/dmenu-desktop-go/config_path.json")
-	// cache := filepath.Join(home, ".cache/dmenu-desktop-go.json")
-	config_path := "./config.json"
-	cache_path := "./cache.json"
+	config_path := filepath.Join(home, ".config/dmenu-desktop-go/config.json")
+	cache_path := filepath.Join(home, ".cache/dmenu-desktop-go.json")
 	lang := re.ReplaceAllString(os.Getenv("LANG"), "")
 	dirs := []string{
 		"/usr/share/applications",
@@ -386,26 +412,39 @@ func main() {
 	apps_by_name := make(map[string]App)
 
 	var apps []App
-	for _, app := range cached_apps {
+	for app := range apps_chan {
 		apps = append(apps, app)
 	}
-	for app := range apps_chan {
+	for _, app := range cached_apps {
 		apps = append(apps, app)
 	}
 
 	apps_by_id := make(map[string]App)
+	number_per_name := make(map[string]int)
 	for _, app := range apps {
 		add := true
 		if found, exists := apps_by_id[app.Id]; exists {
-			if app.File > found.File {
-				add = false
-			} else {
+			if app.File < found.File &&
+				!(slices.Contains(cached_apps, app) && !slices.Contains(cached_apps, found)) {
 				delete(apps_by_name, found.Name)
+				number_per_name[found.Name] -= 1
+				if app.File == found.File && !slices.Contains(cached_apps, app) {
+					delete(apps_by_id, found.Id)
+					index := slices.Index(apps, found)
+					apps = slices.Delete(apps, index, index + 1)
+				}
+			} else {
+				add = false
 			}
 		}
 		if add {
-			apps_by_name[app.Name] = app
+			if number_per_name[app.Name] == 0 {
+				apps_by_name[app.Name] = app
+			} else {
+				apps_by_name[fmt.Sprintf("%s (%v)", app.Name, number_per_name[app.Name])] = app
+			}
 			apps_by_id[app.Id] = app
+			number_per_name[app.Name] += 1
 		}
 	}
 
@@ -440,7 +479,6 @@ func main() {
 		log.Fatal(err)
 	}
 	selected := strings.TrimSpace(string(output))
-	fmt.Printf("Selected \"%s\"\n", selected)
 
 	err = run(selected, config, apps_by_name)
 	if err != nil {
