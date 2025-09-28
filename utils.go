@@ -31,50 +31,36 @@ func parse_command(
 	for i, r := range command {
 		if skip {
 			skip = false
-			continue
-		}
-		if i == len(command)-1 {
+		} else if i == len(command)-1 {
 			if !(quoted && !escaped && r == '"') {
 				builder.WriteRune(r)
 			}
 			splits = append(splits, builder.String())
-			continue
-		}
-		if r == '"' &&
+		} else if r == '"' &&
 			!escaped &&
 			(command[i+1] == ' ' || (i != 0 && command[i-1] == ' ')) &&
 			!ignore_quotes {
 			quoted = !quoted
-			continue
 		} else if r == '"' && !escaped {
 			ignore_quotes = !ignore_quotes
-			continue
-		}
-		if !escaped && r == '\\' {
+		} else if !escaped && r == '\\' {
 			skip = true
 			escaped = true
-			continue
-		}
-		if !quoted && !escaped && r == ' ' {
+		} else if !quoted && !escaped && r == ' ' {
 			splits = append(splits, builder.String())
 			builder.Reset()
-			continue
-		}
-		if !quoted && escaped && r == ' ' {
+		} else if !quoted && escaped && r == ' ' {
 			escaped = false
 			builder.WriteRune(r)
-			continue
-		}
-		if escaped && r == '\\' && (!quoted || command[i+1] == '\\') {
+		} else if escaped && r == '\\' && (!quoted || command[i+1] == '\\') {
 			skip = true
 			escaped = false
 			builder.WriteRune(r)
-			continue
-		}
-		if !escaped && !quoted && strings.Contains(reserved_chars, string(r)) {
+		} else if !escaped && !quoted && strings.Contains(reserved_chars, string(r)) {
 			return nil, errors.New("Malformed Exec key")
+		} else {
+			builder.WriteRune(r)
 		}
-		builder.WriteRune(r)
 	}
 
 	if !strings.Contains(splits[0], "/") {
