@@ -344,14 +344,11 @@ func run_desktop(path string, config Config) error {
 }
 
 func Exec(command []string) error {
-	log.Print(command)
-	cmd := exec.Command("which", command[0])
-	output, err := cmd.Output()
+	binary, err := exec.LookPath(command[0])
 	if err != nil {
 		return err
 	}
 
-	binary := strings.TrimSpace(string(output))
 	command[0] = binary
 
 	err = unix.Exec(binary, command, os.Environ())
