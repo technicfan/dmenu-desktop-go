@@ -13,7 +13,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -171,7 +170,7 @@ func get_desktop_string(path string) (string, error) {
 	return matches[0], nil
 }
 
-func get_details(path string, lang string, wg *sync.WaitGroup, apps chan<- App) {
+func get_desktop_details(path string, lang string, wg *sync.WaitGroup, apps chan<- App) {
 	defer wg.Done()
 
 	desktop_entry, err := get_desktop_string(path)
@@ -209,7 +208,7 @@ func get_details(path string, lang string, wg *sync.WaitGroup, apps chan<- App) 
 	}
 }
 
-func find_files(path string, cache_time int64, wg *sync.WaitGroup, files_chan chan<- []string) {
+func find_desktop_files(path string, cache_time int64, wg *sync.WaitGroup, files_chan chan<- []string) {
 	defer wg.Done()
 
 	var files []string
@@ -245,7 +244,7 @@ func find_files(path string, cache_time int64, wg *sync.WaitGroup, files_chan ch
 	files_chan <- files
 }
 
-func split_args(command string) ([]string, error) {
+func parse_command(command string) ([]string, error) {
 	var splits []string
 	var builder strings.Builder
 	quoted := false
@@ -301,6 +300,12 @@ func split_args(command string) ([]string, error) {
 		builder.WriteRune(r)
 	}
 
+	binary, err := exec.LookPath(splits[0])
+	if err != nil {
+		return nil, err
+	}
+	splits[0] = binary
+
 	return splits, nil
 }
 
@@ -327,7 +332,7 @@ func run_desktop(path string, config Config) error {
 		command = strings.Split(config.TerminalCommand, " ")
 		command = append(command, command_string)
 	} else {
-		command, err = split_args(command_string)
+		command, err = parse_command(command_string)
 		if err != nil {
 			return err
 		}
@@ -340,20 +345,7 @@ func run_desktop(path string, config Config) error {
 		os.Chdir(strings.Replace(matches[0], "Path=", "", 1))
 	}
 
-	err = Exec(command)
-
-	return err
-}
-
-func Exec(command []string) error {
-	binary, err := exec.LookPath(command[0])
-	if err != nil {
-		return err
-	}
-
-	command[0] = binary
-
-	err = unix.Exec(binary, command, os.Environ())
+	err = unix.Exec(command[0], command, os.Environ())
 
 	return err
 }
@@ -361,11 +353,11 @@ func Exec(command []string) error {
 func run(name string, config Config, apps map[string]App) error {
 	if alias, exists := config.Aliases[name]; exists {
 		if !alias.IsDesktop {
-			command, err := split_args(alias.Command)
+			command, err := parse_command(alias.Command)
 			if err != nil {
 				return err
 			}
-			err = Exec(command)
+			err = unix.Exec(command[0], command, os.Environ())
 
 			return err
 		} else if app, exists := apps[alias.Command]; exists {
@@ -381,25 +373,22 @@ func run(name string, config Config, apps map[string]App) error {
 		return err
 	}
 
-	command, err := split_args(name)
+	command, err := parse_command(name)
 	if err != nil {
 		return err
 	}
-	err = Exec(command)
+	err = unix.Exec(command[0], command, os.Environ())
 
 	return err
 }
 
 func main() {
-	usr, _ := user.Current()
-	home := usr.HomeDir
-	args := os.Args
-	re := regexp.MustCompile("_.*")
-
 	var dirs []string
+	args := os.Args
+	home := os.Getenv("HOME")
 	config_path := filepath.Join(home, ".config/dmenu-desktop-go/config.json")
 	cache_path := filepath.Join(home, ".cache/dmenu-desktop-go.json")
-	lang := re.ReplaceAllString(os.Getenv("LANG"), "")
+	lang := regexp.MustCompile("_.*").ReplaceAllString(os.Getenv("LANG"), "")
 	data_dirs := os.Getenv("XDG_DATA_DIRS")
 	data_home := os.Getenv("XDG_DATA_HOME")
 	if data_dirs == "" {
@@ -438,7 +427,7 @@ func main() {
 
 	for _, dir := range dirs {
 		wg.Add(1)
-		go find_files(dir, time, &wg, files_chan)
+		go find_desktop_files(dir, time, &wg, files_chan)
 	}
 
 	go func() {
@@ -453,7 +442,7 @@ func main() {
 
 	for _, file := range files {
 		wg.Add(1)
-		go get_details(file, lang, &wg, apps_chan)
+		go get_desktop_details(file, lang, &wg, apps_chan)
 	}
 
 	go func() {
@@ -519,7 +508,7 @@ func main() {
 		stdin.WriteString(name + "\n")
 	}
 
-	command_args, err := split_args(config.MenuCommand)
+	command_args, err := parse_command(config.MenuCommand)
 	if err != nil {
 		log.Fatal(err)
 	}
