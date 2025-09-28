@@ -12,3 +12,28 @@ Like j4-dmenu-desktop, it searches `$XDG_DATA_DIRS` and `$XDG_DATA_HOME` for .de
 
 Just download the binary or compile it yourself and run it.
 All arguments are directly passed to your menu command.
+When you input something in your menu that is not in the list, it be run if it's a valid command.
+
+### Config:
+
+The config file is stored and automatically generated at `$XDG_CONFIG_HOME/dmenu-desktop-go/config.json` or `$HOME/.config/dmenu-desktop-go/config.json`.
+The default config looks like this (without the examples for aliases and exludes):
+
+```json
+{
+    "menu_command": "dmenu -i -p Run:",
+    "terminal_command": "kitty",
+    "aliases": {
+        "<your alias>": {
+            "command": "<your command>",
+            "is_desktop": <bool>
+        }
+    },
+    "excludes": [
+        "<your exlude"
+    ]
+}
+```
+
+For commands you have to surround arguments with spaces with (escaped because json) double quotes. So you would have to write `command \"path/to/file\"`.
+When you set `"is_desktop": true` the .desktop file where the name is equal to the `"command"`-key or a .desktop file directly if given a path.
