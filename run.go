@@ -77,11 +77,13 @@ func parse_command(
 		builder.WriteRune(r)
 	}
 
-	binary, err := exec.LookPath(splits[0])
-	if err != nil {
-		return nil, err
+	if !strings.Contains(splits[0], "/") {
+		binary, err := exec.LookPath(splits[0])
+		if err != nil {
+			return nil, err
+		}
+		splits[0] = binary
 	}
-	splits[0] = binary
 
 	return splits, nil
 }
