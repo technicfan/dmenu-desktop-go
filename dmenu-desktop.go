@@ -48,7 +48,7 @@ func main() {
 
 	for _, dir := range dirs {
 		wg.Add(1)
-		go find_desktop_files(dir, &wg, files_chan)
+		go find_files_with_extension(dir, ".desktop", &wg, files_chan)
 	}
 
 	go func() {
@@ -71,35 +71,12 @@ func main() {
 		close(apps_chan)
 	}()
 
-	apps_by_name := make(map[string]App)
-
 	var apps []App
 	for app := range apps_chan {
 		apps = append(apps, app)
 	}
 
-	apps_by_id := make(map[string]App)
-	number_per_name := make(map[string]int)
-	for _, app := range apps {
-		add := true
-		if found, exists := apps_by_id[app.Id]; exists {
-			if app.File < found.File {
-				delete(apps_by_name, found.Name)
-				number_per_name[found.Name] -= 1
-			} else {
-				add = false
-			}
-		}
-		if add {
-			if number_per_name[app.Name] == 0 {
-				apps_by_name[app.Name] = app
-			} else {
-				apps_by_name[fmt.Sprintf("%s (%v)", app.Name, number_per_name[app.Name])] = app
-			}
-			apps_by_id[app.Id] = app
-			number_per_name[app.Name] += 1
-		}
-	}
+	apps_final := remove_duplicates(apps)
 
 	go func() {
 		config_wg.Wait()
@@ -108,7 +85,7 @@ func main() {
 	config := <-config_chan
 
 	var names []string
-	for name := range apps_by_name {
+	for name := range apps_final {
 		if !slices.Contains(config.Excludes, name) {
 			names = append(names, name)
 		}
@@ -138,7 +115,7 @@ func main() {
 	}
 	selected := strings.TrimSpace(string(output))
 
-	err = run(selected, config, apps_by_name)
+	err = run(selected, config, apps_final)
 	if err != nil {
 		log.Fatalf("Selected command failed: %s", err.Error())
 	}

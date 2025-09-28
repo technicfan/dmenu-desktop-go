@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -33,6 +32,49 @@ func get_desktop_string(
 	}
 
 	return matches[0], nil
+}
+
+func get_desktop_command(
+	path string,
+	terminal_command string,
+) ([]string, string, error) {
+	var run_path string
+
+	desktop_entry, err := get_desktop_string(path)
+	if err != nil {
+		return nil, "", err
+	}
+	if desktop_entry == "" {
+		return nil, "", fmt.Errorf("%s is invalid", path)
+	}
+
+	re := regexp.MustCompile("(?m)^Exec=.*")
+	matches := re.FindStringSubmatch(desktop_entry)
+	if len(matches) == 0 {
+		return nil, "", fmt.Errorf("%s has no Exec key", path)
+	}
+	command_string := strings.Replace(matches[0], "Exec=", "", 1)
+	re = regexp.MustCompile("( )*%.( )*")
+	command_string = re.ReplaceAllString(command_string, "")
+
+	var command []string
+	if strings.Contains(desktop_entry, "Terminal=true") {
+		command = strings.Split(terminal_command, " ")
+		command = append(command, command_string)
+	} else {
+		command, err = parse_command(command_string)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+
+	re = regexp.MustCompile("(?m)^Path=.*")
+	matches = re.FindStringSubmatch(desktop_entry)
+	if len(matches) != 0 {
+		run_path = strings.Replace(matches[0], "Path=", "", 1)
+	}
+
+	return command, run_path, nil
 }
 
 func get_desktop_details(
@@ -79,31 +121,4 @@ func get_desktop_details(
 			}
 		}
 	}
-}
-
-func find_desktop_files(
-	path string,
-	wg *sync.WaitGroup,
-	files_chan chan<- []string,
-) {
-	defer wg.Done()
-
-	var files []string
-
-	filepath.WalkDir(path, func(file string, dir_entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if info, err := dir_entry.Info(); err == nil {
-			if (info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0) &&
-				strings.EqualFold(filepath.Ext(info.Name()), ".desktop") {
-				files = append(files, file)
-			}
-		}
-
-		return nil
-	})
-
-	files_chan <- files
 }

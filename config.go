@@ -8,7 +8,9 @@ import (
 	"sync"
 )
 
-func print_error(err error) {
+func print_error(
+	err error,
+) {
 	log.Printf("Failed to load config: %s", err.Error())
 }
 
