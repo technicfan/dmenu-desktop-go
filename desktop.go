@@ -97,7 +97,7 @@ func find_desktop_files(
 
 		if info, err := dir_entry.Info(); err == nil {
 			if (info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0) &&
-				strings.HasSuffix(dir_entry.Name(), ".desktop") {
+				strings.EqualFold(filepath.Ext(info.Name()), ".desktop") {
 				files = append(files, file)
 			}
 		}
