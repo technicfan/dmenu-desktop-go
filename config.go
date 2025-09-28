@@ -22,7 +22,6 @@ func load_config(
 	default_config := Config{
 		"dmenu -i -p Run:",
 		"kitty",
-		true,
 		map[string]Alias{},
 		[]string{},
 	}

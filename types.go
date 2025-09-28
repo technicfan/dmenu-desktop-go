@@ -14,7 +14,6 @@ type Alias struct {
 type Config struct {
 	MenuCommand     string           `json:"menu_command"`
 	TerminalCommand string           `json:"terminal_command"`
-	CacheEnabled    bool             `json:"cache_enabled"`
 	Aliases         map[string]Alias `json:"aliases"`
 	Excludes        []string         `json:"excludes"`
 }
