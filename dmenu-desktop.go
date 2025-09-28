@@ -18,20 +18,24 @@ func main() {
 	var dirs []string
 	args := os.Args
 	home := os.Getenv("HOME")
-	config_path := filepath.Join(home, ".config/dmenu-desktop-go/config.json")
 	lang := regexp.MustCompile("_.*").ReplaceAllString(os.Getenv("LANG"), "")
 	data_dirs := os.Getenv("XDG_DATA_DIRS")
 	data_home := os.Getenv("XDG_DATA_HOME")
+	config_home := os.Getenv("XDG_CONFIG_HOME")
+	if config_home == "" {
+		config_home = filepath.Join(home, ".config/")
+	}
+	config_path := filepath.Join(config_home, "dmenu-desktop-go/config.json")
 	if data_dirs == "" {
 		data_dirs = "/usr/share/:/usr/local/share/"
 	}
 	if data_home == "" {
-		data_home = ".local/share/"
+		data_home = filepath.Join(home, ".local/share/")
 	}
 	for dir := range strings.SplitSeq(data_dirs, ":") {
 		dirs = append(dirs, filepath.Join(dir, "applications/"))
 	}
-	dirs = append(dirs, filepath.Join(home, data_home, "applications/"))
+	dirs = append(dirs, filepath.Join(data_home, "applications/"))
 
 	var wg sync.WaitGroup
 	var config_wg sync.WaitGroup
