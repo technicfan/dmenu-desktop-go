@@ -26,7 +26,7 @@ The default config looks like this (without the examples for aliases and exludes
     "aliases": {
         "<your alias>": {
             "command": "<your command>",
-            "is_desktop": <bool>
+            "is_desktop": true/false
         }
     },
     "excludes": [
