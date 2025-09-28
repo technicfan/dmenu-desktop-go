@@ -35,5 +35,9 @@ The default config looks like this (without the examples for aliases and exludes
 }
 ```
 
+The menu command is the command that gets the app list from stdin and should return one selected string.<br>
+The terminal command is the command that is run if `Terminal=true` is specified in the .desktop file.<br>
+The aliases are just that. They override .desktop app entries.
 For commands you have to surround arguments with spaces with (escaped because json) double quotes. So you would have to write `command \"path/to/file\"`.
-When you set `"is_desktop": true` the .desktop file where the name is equal to the `"command"`-key or a .desktop file directly if given a path.
+When you set `"is_desktop": true` the .desktop file where the name is equal to the `"command"`-key or a .desktop file directly if given a path.<br>
+The excludes are strings that are removed from the final list which includes aliases.
