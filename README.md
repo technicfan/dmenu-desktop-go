@@ -5,7 +5,7 @@ It also supports aliases and exludes through a config and is much better that my
 
 ### Info:
 
-It's really not optimized. When you run it the CPU really spices, but it's ok i guess :)
+It's really not optimized. When you run it the CPU really spices, but it's ok i guess :)<br>
 It's pretty fast I'd say, but [j4-dmenu-desktop](https://github.com/enkore/j4-dmenu-desktop) is still faster.
 Like j4-dmenu-desktop, it searches `$XDG_DATA_DIRS` and `$XDG_DATA_HOME` for .desktop files.<br>
 I tried to conform to the [Desktop Entry Specification](https://specifications.freedesktop.org/desktop-entry-spec/1.5/) but I don't know if everything works like intended.
