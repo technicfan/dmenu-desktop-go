@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+
 	"fmt"
 	"io"
 	"syscall"
@@ -22,10 +24,14 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const (
+	reserved_chars = " '\\><~|&;$*?#()`\"\t\n"
+)
+
 type App struct {
-	Name   string `json:"name"`
-	File   string `json:"file"`
-	Id     string `json:"id"`
+	Name string `json:"name"`
+	File string `json:"file"`
+	Id   string `json:"id"`
 }
 
 type Alias struct {
@@ -188,7 +194,7 @@ func get_details(path string, lang string, wg *sync.WaitGroup, apps chan<- App) 
 	if len(matches) > 0 {
 		apps <- App{
 			strings.Replace(matches[0],
-			fmt.Sprintf("Name[%s]=", lang), "", 1),
+				fmt.Sprintf("Name[%s]=", lang), "", 1),
 			path,
 			id,
 		}
@@ -237,21 +243,63 @@ func find_files(path string, cache_time int64, wg *sync.WaitGroup, files_chan ch
 	files_chan <- files
 }
 
-func split_args(command string) []string {
-	re := regexp.MustCompile(`(\s*(\\\s|[^\s])+|\s'[^']*'|\s"[^"]*")`)
-	matches := re.FindAllString(command, -1)
-
-	for i, v := range matches {
-		v = strings.TrimSpace(v)
-		// re := regexp.MustCompile(`\\+`)
-		// v = re.ReplaceAllString(v, `\`)
-		v = strings.ReplaceAll(v, `\\`, `\`)
-		v = strings.ReplaceAll(v, `"`, "")
-		v = strings.ReplaceAll(v, `'`, "")
-		matches[i] = v
+func split_args(command string) ([]string, error) {
+	var splits []string
+	var builder strings.Builder
+	quoted := false
+	escaped := false
+	skip := false
+	ignore_quotes := false
+	for i, r := range command {
+		if skip {
+			skip = false
+			continue
+		}
+		if i == len(command)-1 {
+			if !(quoted && !escaped && r == '"') {
+				builder.WriteRune(r)
+			}
+			splits = append(splits, builder.String())
+			continue
+		}
+		if r == '"' &&
+			!escaped &&
+			(command[i+1] == ' ' || (i != 0 && command[i-1] == ' ')) &&
+			!ignore_quotes {
+			quoted = !quoted
+			continue
+		} else if r == '"' && !escaped {
+			ignore_quotes = !ignore_quotes
+			continue
+		}
+		if !escaped && r == '\\' {
+			skip = true
+			escaped = true
+			continue
+		}
+		if !quoted && !escaped && r == ' ' {
+			splits = append(splits, builder.String())
+			builder.Reset()
+			continue
+		}
+		if !quoted && escaped && r == ' ' {
+			escaped = false
+			builder.WriteRune(r)
+			continue
+		}
+		if escaped && r == '\\' && (!quoted || command[i+1] == '\\') {
+			skip = true
+			escaped = false
+			builder.WriteRune(r)
+			continue
+		}
+		if !escaped && !quoted && strings.Contains(reserved_chars, string(r)) {
+			return nil, errors.New("Malformed Exec key")
+		}
+		builder.WriteRune(r)
 	}
 
-	return matches
+	return splits, nil
 }
 
 func run_desktop(path string, config Config) error {
@@ -277,7 +325,10 @@ func run_desktop(path string, config Config) error {
 		command = strings.Split(config.TerminalCommand, " ")
 		command = append(command, command_string)
 	} else {
-		command = split_args(command_string)
+		command, err = split_args(command_string)
+		if err != nil {
+			return err
+		}
 	}
 
 	re = regexp.MustCompile("(?m)^Path=.*")
@@ -293,18 +344,6 @@ func run_desktop(path string, config Config) error {
 }
 
 func Exec(command []string) error {
-	env_pos := 0
-	for _, value := range command {
-		i := slices.Index(command, value)
-		fmt.Printf("%s\n", value)
-		if strings.Contains(value, "=") && i == env_pos {
-			command = slices.Delete(command, i, i + 1)
-			variable := strings.Split(value, "=")
-			os.Setenv(variable[0], variable[1])
-			env_pos += 1
-		}
-	}
-
 	log.Print(command)
 	cmd := exec.Command("which", command[0])
 	output, err := cmd.Output()
@@ -323,8 +362,11 @@ func Exec(command []string) error {
 func run(name string, config Config, apps map[string]App) error {
 	if alias, exists := config.Aliases[name]; exists {
 		if !alias.IsDesktop {
-			command := split_args(alias.Command)
-			err := Exec(command)
+			command, err := split_args(alias.Command)
+			if err != nil {
+				return err
+			}
+			err = Exec(command)
 
 			return err
 		} else if app, exists := apps[alias.Command]; exists {
@@ -340,8 +382,11 @@ func run(name string, config Config, apps map[string]App) error {
 		return err
 	}
 
-	command := split_args(name)
-	err := Exec(command)
+	command, err := split_args(name)
+	if err != nil {
+		return err
+	}
+	err = Exec(command)
 
 	return err
 }
@@ -352,16 +397,22 @@ func main() {
 	args := os.Args
 	re := regexp.MustCompile("_.*")
 
+	var dirs []string
 	config_path := filepath.Join(home, ".config/dmenu-desktop-go/config.json")
 	cache_path := filepath.Join(home, ".cache/dmenu-desktop-go.json")
 	lang := re.ReplaceAllString(os.Getenv("LANG"), "")
-	dirs := []string{
-		"/usr/share/applications",
-		"/usr/local/share/applications",
-		filepath.Join(home, ".local/share/applications"),
-		"/var/lib/flatpak/exports/share/applications",
-		filepath.Join(home, ".local/share/flatpak/exports/share/applications"),
+	data_dirs := os.Getenv("XDG_DATA_DIRS")
+	data_home := os.Getenv("XDG_DATA_HOME")
+	if data_dirs == "" {
+		data_dirs = "/usr/share/:/usr/local/share/"
 	}
+	if data_home == "" {
+		data_home = ".local/share/"
+	}
+	for dir := range strings.SplitSeq(data_dirs, ":") {
+		dirs = append(dirs, filepath.Join(dir, "applications/"))
+	}
+	dirs = append(dirs, filepath.Join(home, data_home, "applications/"))
 
 	var wg sync.WaitGroup
 	files_chan := make(chan []string, len(dirs))
@@ -377,7 +428,7 @@ func main() {
 
 	if slices.Contains(args, "--clean") {
 		index := slices.Index(args, "--clean")
-		args = slices.Delete(args, index, index + 1)
+		args = slices.Delete(args, index, index+1)
 	} else {
 		cached_apps, time, err = read_cache(cache_path)
 		if err != nil {
@@ -426,8 +477,7 @@ func main() {
 	for _, app := range apps {
 		add := true
 		if found, exists := apps_by_id[app.Id]; exists {
-			if app.File < found.File &&
-				!(slices.Contains(cached_apps, app) && !slices.Contains(cached_apps, found)) {
+			if app.File < found.File {
 				delete(apps_by_name, found.Name)
 				number_per_name[found.Name] -= 1
 			} else {
