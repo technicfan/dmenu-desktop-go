@@ -42,6 +42,7 @@ type Alias struct {
 type Config struct {
 	MenuCommand     string           `json:"menu_command"`
 	TerminalCommand string           `json:"terminal_command"`
+	CacheEnabled    bool             `json:"cache_enabled"`
 	Aliases         map[string]Alias `json:"aliases"`
 	Excludes        []string         `json:"excludes"`
 }
@@ -50,6 +51,7 @@ func load_config(path string) (Config, error) {
 	default_config := Config{
 		"dmenu -i -p Run:",
 		"kitty",
+		true,
 		map[string]Alias{},
 		[]string{},
 	}
@@ -425,8 +427,8 @@ func main() {
 
 	if slices.Contains(args, "--clean") {
 		index := slices.Index(args, "--clean")
-		args = slices.Delete(args, index, index+1)
-	} else {
+		args = slices.Delete(args, index, index + 1)
+	} else if config.CacheEnabled {
 		cached_apps, time, err = read_cache(cache_path)
 		if err != nil {
 			log.Print("Failed to load cache")
@@ -504,9 +506,11 @@ func main() {
 		}
 	}
 
-	err = write_cache(cache_path, apps)
-	if err != nil {
-		fmt.Printf("Failed to write cache: %s", err.Error())
+	if config.CacheEnabled {
+		err = write_cache(cache_path, apps)
+		if err != nil {
+			fmt.Printf("Failed to write cache: %s", err.Error())
+		}
 	}
 
 	sort.Strings(names)
@@ -515,17 +519,25 @@ func main() {
 		stdin.WriteString(name + "\n")
 	}
 
-	command_args := strings.Split(config.MenuCommand, " ")
-	cmd := exec.Command(command_args[0], command_args[1:]...)
-	cmd.Stdin = bytes.NewReader(stdin.Bytes())
-	output, err := cmd.Output()
+	command_args, err := split_args(config.MenuCommand)
 	if err != nil {
 		log.Fatal(err)
 	}
-	selected := strings.TrimSpace(string(output))
+	command_args = append(command_args, args[1:]...)
+	if len(command_args) == 0 {
+		log.Fatal("Menu command cannot be empty")
+	} else {
+		cmd := exec.Command(command_args[0], command_args[1:]...)
+		cmd.Stdin = bytes.NewReader(stdin.Bytes())
+		output, err := cmd.Output()
+		if err != nil {
+			log.Fatal(err)
+		}
+		selected := strings.TrimSpace(string(output))
 
-	err = run(selected, config, apps_by_name)
-	if err != nil {
-		log.Fatal(err)
+		err = run(selected, config, apps_by_name)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 }
