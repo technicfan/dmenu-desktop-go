@@ -91,7 +91,9 @@ func main() {
 		}
 	}
 	for name := range config.Aliases {
-		names = append(names, name)
+		if !slices.Contains(append(names, config.Excludes...), name) {
+			names = append(names, name)
+		}
 	}
 
 	sort.Strings(names)
