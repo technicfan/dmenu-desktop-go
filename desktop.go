@@ -54,7 +54,7 @@ func get_desktop_command(
 		return nil, "", fmt.Errorf("%s has no Exec key", path)
 	}
 	command_string := strings.Replace(matches[0], "Exec=", "", 1)
-	re = regexp.MustCompile("(( )*%.( )*|@@[a-z].*@@)")
+	re = regexp.MustCompile("(( )*%.( )*| @@[a-z].*@@)")
 	command_string = re.ReplaceAllString(command_string, "")
 
 	var command []string
