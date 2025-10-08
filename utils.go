@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -57,7 +58,7 @@ func parse_command(
 			escaped = false
 			builder.WriteRune(r)
 		} else if !escaped && !quoted && strings.Contains(reserved_chars, string(r)) {
-			return nil, errors.New("Malformed Exec key")
+			return nil, fmt.Errorf("Unescaped %s at position %v in Exec key", string(r), i)
 		} else {
 			builder.WriteRune(r)
 		}
@@ -76,6 +77,7 @@ func parse_command(
 
 func remove_duplicates(
 	apps []App,
+	dirs []string,
 ) map[string]App {
 	apps_by_name := make(map[string]App)
 	apps_by_id := make(map[string]App)
@@ -83,8 +85,8 @@ func remove_duplicates(
 	for _, app := range apps {
 		add := true
 		if found, exists := apps_by_id[app.Id]; exists {
-			if app.File < found.File {
-				delete(apps_by_name, found.Name)
+			if slices.Index(dirs, app.Dir) < slices.Index(dirs, found.Dir) {
+				delete(apps_by_name, fmt.Sprintf("%s (%v)", found.Name, found.Number))
 				number_per_name[found.Name] -= 1
 			} else {
 				add = false
@@ -95,6 +97,7 @@ func remove_duplicates(
 				apps_by_name[app.Name] = app
 			} else {
 				apps_by_name[fmt.Sprintf("%s (%v)", app.Name, number_per_name[app.Name])] = app
+				app.Number = number_per_name[app.Name]
 			}
 			apps_by_id[app.Id] = app
 			number_per_name[app.Name] += 1

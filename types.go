@@ -1,9 +1,11 @@
 package main
 
 type App struct {
-	Name string `json:"name"`
-	File string `json:"file"`
-	Id   string `json:"id"`
+	Name string
+	File string
+	Id   string
+	Dir string
+	Number int
 }
 
 type Alias struct {

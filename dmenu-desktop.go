@@ -32,10 +32,10 @@ func main() {
 	if data_home == "" {
 		data_home = filepath.Join(home, ".local/share/")
 	}
+	dirs = append(dirs, filepath.Join(data_home, "applications/"))
 	for dir := range strings.SplitSeq(data_dirs, ":") {
 		dirs = append(dirs, filepath.Join(dir, "applications/"))
 	}
-	dirs = append(dirs, filepath.Join(data_home, "applications/"))
 
 	var wg sync.WaitGroup
 	var config_wg sync.WaitGroup
@@ -61,9 +61,11 @@ func main() {
 		files = append(files, values...)
 	}
 
+	regexp_id := regexp.MustCompile(fmt.Sprintf("(^%s/)", strings.Join(dirs, "/|^")))
+
 	for _, file := range files {
 		wg.Add(1)
-		go get_desktop_details(file, lang, &wg, apps_chan)
+		go get_desktop_details(file, lang, regexp_id, &wg, apps_chan)
 	}
 
 	go func() {
@@ -76,7 +78,7 @@ func main() {
 		apps = append(apps, app)
 	}
 
-	apps_final := remove_duplicates(apps)
+	apps_final := remove_duplicates(apps, dirs)
 
 	go func() {
 		config_wg.Wait()

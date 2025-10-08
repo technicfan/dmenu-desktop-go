@@ -5,7 +5,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -80,6 +79,7 @@ func get_desktop_command(
 func get_desktop_details(
 	path string,
 	lang string,
+	regexp_id *regexp.Regexp,
 	wg *sync.WaitGroup,
 	apps chan<- App,
 ) {
@@ -100,7 +100,8 @@ func get_desktop_details(
 		return
 	}
 
-	id := strings.ReplaceAll(filepath.Base(path), ".desktop", "")
+	id := regexp.MustCompile(".desktop$").ReplaceAllString(regexp_id.Split(path, 2)[1], "")
+	dir := regexp.MustCompile(fmt.Sprintf("%s.desktop$", id)).ReplaceAllString(path, "")
 
 	re = regexp.MustCompile(fmt.Sprintf(`(?m)^Name\[%s\]=.*`, lang))
 	matches := re.FindStringSubmatch(desktop_entry)
@@ -109,6 +110,8 @@ func get_desktop_details(
 			strings.Replace(matches[0], fmt.Sprintf("Name[%s]=", lang), "", 1),
 			path,
 			id,
+			dir,
+			0,
 		}
 	} else {
 		re = regexp.MustCompile("(?m)^Name=.*")
@@ -118,6 +121,8 @@ func get_desktop_details(
 				strings.Replace(matches[0], "Name=", "", 1),
 				path,
 				id,
+				dir,
+				0,
 			}
 		}
 	}
