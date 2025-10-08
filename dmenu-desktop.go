@@ -61,11 +61,15 @@ func main() {
 		files = append(files, values...)
 	}
 
-	regexp_id := regexp.MustCompile(fmt.Sprintf("(^%s/)", strings.Join(dirs, "/|^")))
-
 	for _, file := range files {
 		wg.Add(1)
-		go get_desktop_details(file, lang, regexp_id, &wg, apps_chan)
+		go get_desktop_details(
+			file,
+			lang,
+			regexp.MustCompile(fmt.Sprintf("(^%s/)", strings.Join(dirs, "/|^"))),
+			&wg,
+			apps_chan,
+		)
 	}
 
 	go func() {
