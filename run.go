@@ -31,19 +31,19 @@ func run(
 		}
 	} else if app, exists := apps[name]; exists {
 		command, path, err = get_desktop_command(app.File, config.TerminalCommand)
-		if err != nil {
-			return err
-		}
 	} else {
 		command, err = parse_command(name)
 	}
 
-	if path != "" {
-		err = os.Chdir(path)
-	}
-
 	if err != nil {
 		return err
+	}
+
+	if path != "" {
+		err = os.Chdir(path)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = unix.Exec(command[0], command, os.Environ())
