@@ -32,7 +32,7 @@ The default config looks like this (without the examples for aliases and exludes
         }
     },
     "excludes": [
-        "<your exlude"
+        "<your exlude>"
     ]
 }
 ```
