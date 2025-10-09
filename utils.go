@@ -33,7 +33,7 @@ func parse_command(
 		if skip {
 			skip = false
 		} else if i == len(command)-1 {
-			if !(quoted && !escaped && r == '"') {
+			if !((quoted || !escaped) && r == '"') {
 				builder.WriteRune(r)
 			}
 			splits = append(splits, builder.String())
