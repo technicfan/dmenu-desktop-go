@@ -28,41 +28,44 @@ func parse_command(
 	quoted := false
 	escaped := false
 	skip := false
-	ignore_quotes := false
 	for i, r := range command {
 		if skip {
 			skip = false
-		} else if i == len(command)-1 {
-			if !((quoted || !escaped) && r == '"') {
+			continue
+		}
+
+		switch {
+		case r == '"' && !escaped:
+			if (i == 0 || command[i-1] == ' ') || (i == len(command)-1 || command[i+1] == ' ') {
+				quoted = !quoted
+			}
+		case r == ' ' && !quoted:
+			if escaped {
+				escaped = false
+				builder.WriteRune(r)
+			} else {
+				splits = append(splits, builder.String())
+				builder.Reset()
+			}
+		case r == '\\':
+			if escaped && (!quoted || command[i+1] == '\\') {
+				skip = true
+				escaped = false
+				builder.WriteRune(r)
+			} else if !escaped {
+				skip = true
+				escaped = true
+			}
+		default:
+			if !escaped && !quoted && strings.Contains(reserved_chars, string(r)) {
+				return nil, fmt.Errorf("Unescaped %s at position %v in Exec key", string(r), i)
+			} else {
 				builder.WriteRune(r)
 			}
-			splits = append(splits, builder.String())
-		} else if r == '"' &&
-			!escaped &&
-			(command[i+1] == ' ' || (i != 0 && command[i-1] == ' ')) &&
-			!ignore_quotes {
-			quoted = !quoted
-		} else if r == '"' && !escaped {
-			ignore_quotes = !ignore_quotes
-		} else if !escaped && r == '\\' {
-			skip = true
-			escaped = true
-		} else if !quoted && !escaped && r == ' ' {
-			splits = append(splits, builder.String())
-			builder.Reset()
-		} else if !quoted && escaped && r == ' ' {
-			escaped = false
-			builder.WriteRune(r)
-		} else if escaped && r == '\\' && (!quoted || command[i+1] == '\\') {
-			skip = true
-			escaped = false
-			builder.WriteRune(r)
-		} else if !escaped && !quoted && strings.Contains(reserved_chars, string(r)) {
-			return nil, fmt.Errorf("Unescaped %s at position %v in Exec key", string(r), i)
-		} else {
-			builder.WriteRune(r)
 		}
 	}
+	
+	splits = append(splits, builder.String())
 
 	if !strings.Contains(splits[0], "/") {
 		binary, err := exec.LookPath(splits[0])
