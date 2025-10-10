@@ -36,7 +36,7 @@ func parse_command(
 
 		switch {
 		case r == '"' && !escaped:
-			if (i == 0 || command[i-1] == ' ') || (i == len(command)-1 || command[i+1] == ' ') {
+			if i == 0 || i == len(command)-1 || command[i-1] == ' ' || command[i+1] == ' ' {
 				quoted = !quoted
 			}
 		case r == ' ' && !quoted:
