@@ -58,13 +58,11 @@ func get_desktop_command(
 
 	var command []string
 	if strings.Contains(desktop_entry, "Terminal=true") {
-		command = strings.Split(terminal_command, " ")
-		command = append(command, command_string)
-	} else {
-		command, err = parse_command(command_string)
-		if err != nil {
-			return nil, "", err
-		}
+		command_string = fmt.Sprintf("%s %s", terminal_command, command_string)
+	}
+	command, err = parse_command(command_string)
+	if err != nil {
+		return nil, "", err
 	}
 
 	re = regexp.MustCompile("(?m)^Path=.*")
