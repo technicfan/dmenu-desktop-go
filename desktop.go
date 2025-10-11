@@ -1,9 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"regexp"
 	"strings"
@@ -34,94 +34,106 @@ func get_desktop_string(
 }
 
 func get_desktop_command(
-	path string,
-	terminal_command string,
+	app App,
 ) ([]string, string, error) {
-	var run_path string
+	re := regexp.MustCompile("(( )*%[fFuUi]( )*|( )*@@u %u @@)")
+	command_string := re.ReplaceAllString(app.Command, "")
+	command_string = strings.ReplaceAll(command_string, "%%", "%")
+	command_string = strings.ReplaceAll(command_string, "%k", app.File)
 
-	desktop_entry, err := get_desktop_string(path)
-	if err != nil {
-		return nil, "", err
-	}
-	if desktop_entry == "" {
-		return nil, "", fmt.Errorf("%s is invalid", path)
-	}
-
-	re := regexp.MustCompile("(?m)^Exec=.*")
-	matches := re.FindStringSubmatch(desktop_entry)
-	if len(matches) == 0 {
-		return nil, "", fmt.Errorf("%s has no Exec key", path)
-	}
-	command_string := strings.Replace(matches[0], "Exec=", "", 1)
-	re = regexp.MustCompile("(( )*%.( )*| @@[a-z].*@@)")
-	command_string = re.ReplaceAllString(command_string, "")
-
-	var command []string
-	if strings.Contains(desktop_entry, "Terminal=true") {
-		command_string = fmt.Sprintf("%s %s", terminal_command, command_string)
-	}
-	command, err = parse_command(command_string)
+	command, err := parse_command(command_string)
 	if err != nil {
 		return nil, "", err
 	}
 
-	re = regexp.MustCompile("(?m)^Path=.*")
-	matches = re.FindStringSubmatch(desktop_entry)
-	if len(matches) != 0 {
-		run_path = strings.Replace(matches[0], "Path=", "", 1)
-	}
-
-	return command, run_path, nil
+	return command, app.Path, nil
 }
 
-func get_desktop_details(
+func get_app(
 	path string,
 	lang string,
+	terminal_command string,
 	regexp_id *regexp.Regexp,
-	wg *sync.WaitGroup,
-	apps chan<- App,
-) {
-	defer wg.Done()
-
+) (App, error) {
 	desktop_entry, err := get_desktop_string(path)
 	if err != nil {
-		log.Fatalf("Failed to read %s: %s", path, err.Error())
+		return App{}, fmt.Errorf("Failed to read %s: %s", path, err.Error())
 	}
 	if desktop_entry == "" {
-		return
+		return App{}, errors.New("Invalid desktop entry")
 	}
 
 	re := regexp.MustCompile("(?m)^(NoDisplay|Hidden)=true$")
 
 	if re.MatchString(desktop_entry) ||
 		!regexp.MustCompile("(?m)^Type=Application").MatchString(desktop_entry) {
-		return
+		return App{}, errors.New("No visible application")
+	}
+
+	re = regexp.MustCompile("(?m)^Exec=.*")
+	matches := re.FindStringSubmatch(desktop_entry)
+	if len(matches) == 0 {
+		return App{}, fmt.Errorf("%s has no Exec key", path)
+	}
+	command_string := strings.Replace(matches[0], "Exec=", "", 1)
+
+	if strings.Contains(desktop_entry, "Terminal=true") {
+		command_string = fmt.Sprintf("%s %s", terminal_command, command_string)
+	}
+
+	var run_path string
+	re = regexp.MustCompile("(?m)^Path=.*")
+	matches = re.FindStringSubmatch(desktop_entry)
+	if len(matches) != 0 {
+		run_path = strings.Replace(matches[0], "Path=", "", 1)
 	}
 
 	id := regexp.MustCompile(".desktop$").ReplaceAllString(regexp_id.Split(path, 2)[1], "")
 	dir := regexp.MustCompile(fmt.Sprintf("%s.desktop$", id)).ReplaceAllString(path, "")
 
 	re = regexp.MustCompile(fmt.Sprintf(`(?m)^Name\[%s\]=.*`, lang))
-	matches := re.FindStringSubmatch(desktop_entry)
+	matches = re.FindStringSubmatch(desktop_entry)
 	if len(matches) > 0 {
-		apps <- App{
+		return App{
 			strings.Replace(matches[0], fmt.Sprintf("Name[%s]=", lang), "", 1),
 			path,
+			command_string,
+			run_path,
 			id,
 			dir,
 			0,
-		}
+		}, nil
 	} else {
 		re = regexp.MustCompile("(?m)^Name=.*")
 		matches = re.FindStringSubmatch(desktop_entry)
 		if len(matches) > 0 {
-			apps <- App{
+			return App{
 				strings.Replace(matches[0], "Name=", "", 1),
 				path,
+				command_string,
+				run_path,
 				id,
 				dir,
 				0,
-			}
+			}, nil
 		}
+	}
+
+	return App{}, errors.New("Invalid desktop entry")
+}
+
+func get_app_async(
+	path string,
+	lang string,
+	terminal_command string,
+	regexp_id *regexp.Regexp,
+	wg *sync.WaitGroup,
+	apps chan<- App,
+) {
+	defer wg.Done()
+
+	app, err := get_app(path, lang, terminal_command, regexp_id)
+	if err == nil {
+		apps <- app
 	}
 }

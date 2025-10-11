@@ -15,27 +15,15 @@ import (
 )
 
 func main() {
-	var dirs []string
 	args := os.Args
 	home := os.Getenv("HOME")
 	lang := regexp.MustCompile("_.*").ReplaceAllString(os.Getenv("LANG"), "")
-	data_dirs := os.Getenv("XDG_DATA_DIRS")
-	data_home := os.Getenv("XDG_DATA_HOME")
 	config_home := os.Getenv("XDG_CONFIG_HOME")
 	if config_home == "" {
 		config_home = filepath.Join(home, ".config/")
 	}
 	config_path := filepath.Join(config_home, "dmenu-desktop-go/config.json")
-	if data_dirs == "" {
-		data_dirs = "/usr/share/:/usr/local/share/"
-	}
-	if data_home == "" {
-		data_home = filepath.Join(home, ".local/share/")
-	}
-	dirs = append(dirs, filepath.Join(data_home, "applications/"))
-	for dir := range strings.SplitSeq(data_dirs, ":") {
-		dirs = append(dirs, filepath.Join(dir, "applications/"))
-	}
+	dirs := get_dirs(home)
 
 	var wg sync.WaitGroup
 	var config_wg sync.WaitGroup
@@ -61,12 +49,21 @@ func main() {
 		files = append(files, values...)
 	}
 
+	regexp_id := regexp.MustCompile(fmt.Sprintf("(^%s/)", strings.Join(dirs, "/|^")))
+
+	go func() {
+		config_wg.Wait()
+		close(config_chan)
+	}()
+	config := <-config_chan
+
 	for _, file := range files {
 		wg.Add(1)
-		go get_desktop_details(
+		go get_app_async(
 			file,
 			lang,
-			regexp.MustCompile(fmt.Sprintf("(^%s/)", strings.Join(dirs, "/|^"))),
+			config.TerminalCommand,
+			regexp_id,
 			&wg,
 			apps_chan,
 		)
@@ -83,12 +80,6 @@ func main() {
 	}
 
 	apps_final := remove_duplicates(apps, dirs)
-
-	go func() {
-		config_wg.Wait()
-		close(config_chan)
-	}()
-	config := <-config_chan
 
 	var names []string
 	for name := range apps_final {
@@ -123,7 +114,7 @@ func main() {
 	}
 	selected := strings.TrimSpace(string(output))
 
-	err = run(selected, config, apps_final)
+	err = run(selected, config, apps_final, lang, regexp_id)
 	if err != nil {
 		log.Fatalf("Selected command failed: %s", err.Error())
 	}

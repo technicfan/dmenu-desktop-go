@@ -3,6 +3,8 @@ package main
 type App struct {
 	Name string
 	File string
+	Command string
+	Path string
 	Id   string
 	Dir string
 	Number int

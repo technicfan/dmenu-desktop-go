@@ -36,9 +36,7 @@ func parse_command(
 
 		switch {
 		case r == '"' && !escaped:
-			if i == 0 || i == len(command)-1 || command[i-1] == ' ' || command[i+1] == ' ' {
-				quoted = !quoted
-			}
+			quoted = !quoted
 		case r == ' ' && !quoted:
 			if escaped {
 				escaped = false
@@ -142,4 +140,24 @@ func find_files_with_extension(
 	})
 
 	files_chan <- files
+}
+
+func get_dirs(
+	home string,
+) []string {
+	var dirs []string
+	data_dirs := os.Getenv("XDG_DATA_DIRS")
+	data_home := os.Getenv("XDG_DATA_HOME")
+	if data_dirs == "" {
+		data_dirs = "/usr/share/:/usr/local/share/"
+	}
+	if data_home == "" {
+		data_home = filepath.Join(home, ".local/share/")
+	}
+	dirs = append(dirs, filepath.Join(data_home, "applications/"))
+	for dir := range strings.SplitSeq(data_dirs, ":") {
+		dirs = append(dirs, filepath.Join(dir, "applications/"))
+	}
+
+	return dirs
 }
