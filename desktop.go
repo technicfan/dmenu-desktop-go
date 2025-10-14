@@ -37,7 +37,7 @@ func get_desktop_string(
 func get_desktop_command(
 	app App,
 ) ([]string, string, error) {
-	re := regexp.MustCompile("(( )*%[fFuUi]( )*|( )*@@u %u @@)")
+	re := regexp.MustCompile("(( )*%[fFuUi]( )*|( )*@@u %[uU] @@)")
 	command_string := re.ReplaceAllString(app.Command, "")
 	command_string = strings.ReplaceAll(command_string, "%%", "%")
 	command_string = strings.ReplaceAll(command_string, "%k", app.File)
