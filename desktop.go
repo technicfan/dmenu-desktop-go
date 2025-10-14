@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -88,8 +89,11 @@ func get_app(
 		run_path = strings.Replace(matches[0], "Path=", "", 1)
 	}
 
-	id := regexp.MustCompile(".desktop$").ReplaceAllString(regexp_id.Split(path, 2)[1], "")
-	dir := regexp.MustCompile(fmt.Sprintf("%s.desktop$", id)).ReplaceAllString(path, "")
+	id := strings.ReplaceAll(
+		regexp.MustCompile(".desktop$").ReplaceAllString(regexp_id.Split(path, 2)[1], ""),
+		"/",
+		"-",
+	)
 
 	re = regexp.MustCompile(fmt.Sprintf(`(?m)^Name\[%s\]=.*`, lang))
 	matches = re.FindStringSubmatch(desktop_entry)
@@ -100,7 +104,7 @@ func get_app(
 			command_string,
 			run_path,
 			id,
-			dir,
+			filepath.Dir(path),
 			0,
 		}, nil
 	} else {
@@ -113,7 +117,7 @@ func get_app(
 				command_string,
 				run_path,
 				id,
-				dir,
+				filepath.Dir(path),
 				0,
 			}, nil
 		}

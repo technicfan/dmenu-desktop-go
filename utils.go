@@ -86,7 +86,7 @@ func remove_duplicates(
 	for _, app := range apps {
 		add := true
 		if found, exists := apps_by_id[app.Id]; exists {
-			if slices.Index(dirs, app.Dir) > slices.Index(dirs, found.Dir) {
+			if slices.Index(dirs, app.Dir) < slices.Index(dirs, found.Dir) {
 				if found.Number == 0 {
 					delete(apps_by_name, found.Name)
 				} else {
