@@ -83,7 +83,8 @@ func remove_duplicates(
 	apps_by_name := make(map[string]App)
 	apps_by_id := make(map[string]App)
 	number_per_name := make(map[string]int)
-	for _, app := range apps {
+	for i := range apps {
+		app := &apps[i]
 		add := true
 		if found, exists := apps_by_id[app.Id]; exists {
 			if slices.Index(dirs, app.Dir) < slices.Index(dirs, found.Dir) {
@@ -101,12 +102,12 @@ func remove_duplicates(
 		}
 		if add {
 			if number_per_name[app.Name] == 0 {
-				apps_by_name[app.Name] = app
+				apps_by_name[app.Name] = *app
 			} else {
-				apps_by_name[fmt.Sprintf("%s (%v)", app.Name, number_per_name[app.Name])] = app
+				apps_by_name[fmt.Sprintf("%s (%v)", app.Name, number_per_name[app.Name])] = *app
 				app.Number = number_per_name[app.Name]
 			}
-			apps_by_id[app.Id] = app
+			apps_by_id[app.Id] = *app
 			number_per_name[app.Name] += 1
 		}
 	}

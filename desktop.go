@@ -1,9 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -11,28 +11,6 @@ import (
 	"sync"
 )
 
-func get_desktop_string(
-	path string,
-) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	byte_data, err := io.ReadAll(file)
-	if err != nil {
-		return "", err
-	}
-
-	re := regexp.MustCompile(`(?s)(?m)^\[Desktop Entry\](.*?)(^\[|\z)`)
-	matches := re.FindStringSubmatch(string(byte_data))
-	if len(matches) == 0 {
-		return "", nil
-	}
-
-	return matches[0], nil
-}
 
 func get_desktop_command(
 	app App,
@@ -52,75 +30,67 @@ func get_desktop_command(
 
 func get_app(
 	path string,
-	lang string,
+	localized_name_key string,
 	terminal_command string,
-	regexp_id *regexp.Regexp,
+	dirs []string,
 ) (App, error) {
-	desktop_entry, err := get_desktop_string(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return App{}, fmt.Errorf("Failed to read %s: %s", path, err.Error())
 	}
-	if desktop_entry == "" {
-		return App{}, errors.New("Invalid desktop entry")
-	}
+	defer file.Close()
 
-	re := regexp.MustCompile("(?m)^(NoDisplay|Hidden)=true$")
+	app := App{}
+	var exe string
+	var is_entry, is_app, terminal bool
 
-	if re.MatchString(desktop_entry) ||
-		!regexp.MustCompile("(?m)^Type=Application").MatchString(desktop_entry) {
-		return App{}, errors.New("No visible application")
-	}
-
-	re = regexp.MustCompile("(?m)^Exec=.*")
-	matches := re.FindStringSubmatch(desktop_entry)
-	if len(matches) == 0 {
-		return App{}, fmt.Errorf("%s has no Exec key", path)
-	}
-	command_string := strings.Replace(matches[0], "Exec=", "", 1)
-
-	if strings.Contains(desktop_entry, "Terminal=true") {
-		command_string = fmt.Sprintf("%s %s", terminal_command, command_string)
-	}
-
-	var run_path string
-	re = regexp.MustCompile("(?m)^Path=.*")
-	matches = re.FindStringSubmatch(desktop_entry)
-	if len(matches) != 0 {
-		run_path = strings.Replace(matches[0], "Path=", "", 1)
-	}
-
-	id := strings.ReplaceAll(
-		regexp.MustCompile(".desktop$").ReplaceAllString(regexp_id.Split(path, 2)[1], ""),
-		"/",
-		"-",
-	)
-
-	re = regexp.MustCompile(fmt.Sprintf(`(?m)^Name\[%s\]=.*`, lang))
-	matches = re.FindStringSubmatch(desktop_entry)
-	if len(matches) > 0 {
-		return App{
-			strings.Replace(matches[0], fmt.Sprintf("Name[%s]=", lang), "", 1),
-			path,
-			command_string,
-			run_path,
-			id,
-			filepath.Dir(path),
-			0,
-		}, nil
-	} else {
-		re = regexp.MustCompile("(?m)^Name=.*")
-		matches = re.FindStringSubmatch(desktop_entry)
-		if len(matches) > 0 {
-			return App{
-				strings.Replace(matches[0], "Name=", "", 1),
-				path,
-				command_string,
-				run_path,
-				id,
-				filepath.Dir(path),
-				0,
-			}, nil
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "#") || line == "" {
+			continue
+		} else if line == "[Desktop Entry]" {
+			is_entry = true
+			continue
 		}
+		if !is_entry {
+			return App{}, errors.New("Invalid desktop entry")
+		}
+		if strings.HasPrefix(line, "[") {
+			break
+		}
+		switch {
+			case line == "NoDisplay=true" || line == "Hidden=true":
+				return App{}, errors.New("No visible application")
+			case line == "Terminal=true":
+				terminal = true
+			case line == "Type=Application":
+				is_app = true
+			case strings.HasPrefix(line, "Exec="):
+				exe = strings.Replace(line, "Exec=", "", 1)
+			case strings.HasPrefix(line, "Path="):
+				app.Path = strings.Replace(line, "Path=", "", 1)
+			case strings.HasPrefix(line, localized_name_key):
+				app.Name = strings.Replace(line, localized_name_key, "", 1)
+			case strings.HasPrefix(line, "Name=") && app.Name == "":
+				app.Name = strings.Replace(line, "Name=", "", 1)
+		}
+	}	
+	if terminal {
+		exe = fmt.Sprintf("%s %s", terminal_command, exe)
+	}
+	app.Dir = filepath.Dir(path)
+	app.Command = exe
+	app.File = path
+	for _, dir := range dirs {
+		if strings.HasPrefix(path, dir) {
+			app.Id = strings.ReplaceAll(strings.Replace(path, dir, "", 1), "/", "-")
+			break
+		}
+	}
+
+	if is_app && app.Name != "" && app.Command != "" {
+		return app, nil
 	}
 
 	return App{}, errors.New("Invalid desktop entry")
@@ -128,15 +98,15 @@ func get_app(
 
 func get_app_async(
 	path string,
-	lang string,
+	localized_name_key string,
 	terminal_command string,
-	regexp_id *regexp.Regexp,
+	dirs []string,
 	wg *sync.WaitGroup,
 	apps chan<- App,
 ) {
 	defer wg.Done()
 
-	app, err := get_app(path, lang, terminal_command, regexp_id)
+	app, err := get_app(path, localized_name_key, terminal_command, dirs)
 	if err == nil {
 		apps <- app
 	}

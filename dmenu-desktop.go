@@ -3,11 +3,9 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -17,7 +15,7 @@ import (
 func main() {
 	args := os.Args
 	home := os.Getenv("HOME")
-	lang := regexp.MustCompile("_.*").ReplaceAllString(os.Getenv("LANG"), "")
+	localized_name_key := fmt.Sprintf("Name[%s]=", strings.Split(os.Getenv("LANG"), "_")[0])
 	config_home := os.Getenv("XDG_CONFIG_HOME")
 	if config_home == "" {
 		config_home = filepath.Join(home, ".config/")
@@ -49,8 +47,6 @@ func main() {
 		files = append(files, values...)
 	}
 
-	regexp_id := regexp.MustCompile(fmt.Sprintf("(^%s/)", strings.Join(dirs, "/|^")))
-
 	go func() {
 		config_wg.Wait()
 		close(config_chan)
@@ -61,9 +57,9 @@ func main() {
 		wg.Add(1)
 		go get_app_async(
 			file,
-			lang,
+			localized_name_key,
 			config.TerminalCommand,
-			regexp_id,
+			dirs,
 			&wg,
 			apps_chan,
 		)
@@ -103,19 +99,22 @@ func main() {
 
 	command_args, err := parse_command(config.MenuCommand)
 	if err != nil {
-		log.Fatalf("Failed to parse menu command: %s", err.Error())
+		fmt.Printf("Failed to parse menu command: %s", err.Error())
+		os.Exit(1)
 	}
 	command_args = append(command_args, args[1:]...)
 	cmd := exec.Command(command_args[0], command_args[1:]...)
 	cmd.Stdin = bytes.NewReader(stdin.Bytes())
 	output, err := cmd.Output()
 	if err != nil {
-		log.Fatalf("Menu failed: %s", err.Error())
+		fmt.Printf("Menu failed: %s", err.Error())
+		os.Exit(err.(*exec.ExitError).ExitCode())
 	}
 	selected := strings.TrimSpace(string(output))
 
-	err = run(selected, config, apps_final, lang, regexp_id)
+	err = run(selected, config, apps_final, localized_name_key, dirs)
 	if err != nil {
-		log.Fatalf("Selected command failed: %s", err.Error())
+		fmt.Printf("Selected command failed: %s", err.Error())
+		os.Exit(1)
 	}
 }

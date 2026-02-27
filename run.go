@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"os"
-	"regexp"
 	"strings"
 
 	"golang.org/x/sys/unix"
@@ -13,8 +12,8 @@ func run(
 	name string,
 	config Config,
 	apps map[string]App,
-	lang string,
-	regexp_id *regexp.Regexp,
+	localized_name_key string,
+	dirs []string,
 ) error {
 	var err error
 	var path string
@@ -27,7 +26,7 @@ func run(
 			if app, exists := apps[alias.Command]; exists {
 				command, path, err = get_desktop_command(app)
 			} else if strings.HasSuffix(alias.Command, ".desktop") {
-				app, err = get_app(alias.Command, lang, config.TerminalCommand, regexp_id)
+				app, err = get_app(alias.Command, localized_name_key, config.TerminalCommand, dirs)
 				if err != nil {
 					return err
 				}

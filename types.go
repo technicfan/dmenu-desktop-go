@@ -1,13 +1,13 @@
 package main
 
 type App struct {
-	Name string
-	File string
+	Name    string
+	File    string
 	Command string
-	Path string
-	Id   string
-	Dir string
-	Number int
+	Path    string
+	Id      string
+	Dir     string
+	Number  int
 }
 
 type Alias struct {

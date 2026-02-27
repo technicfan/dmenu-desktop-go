@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
-	"log"
 	"os"
 	"sync"
 )
@@ -11,7 +11,7 @@ import (
 func print_error(
 	err error,
 ) {
-	log.Printf("Failed to load config: %s", err.Error())
+	fmt.Printf("Failed to load config: %s", err.Error())
 }
 
 func load_config(
