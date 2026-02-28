@@ -13,7 +13,7 @@ I tried to conform to the [Desktop Entry Specification](https://specifications.f
 
 Just download the binary or compile it yourself and run it.
 All arguments are directly passed to your menu command.
-When you input something in your menu that is not in the list, it be run if it's a valid command.
+When you input something in your menu that is not in the list, it will be run if it's a valid command.
 
 ### Config:
 
