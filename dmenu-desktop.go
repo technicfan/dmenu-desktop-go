@@ -124,7 +124,6 @@ func main() {
 		fmt.Printf("Failed to parse menu command: %s", err.Error())
 		os.Exit(1)
 	}
-	fmt.Println(command_args)
 	command_args = append(command_args, args[1:]...)
 	cmd := exec.Command(command_args[0], command_args[1:]...)
 	cmd.Stdin = bytes.NewReader(stdin.Bytes())
