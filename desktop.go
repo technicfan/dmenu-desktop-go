@@ -11,7 +11,6 @@ import (
 	"sync"
 )
 
-
 func get_desktop_command(
 	app App,
 ) ([]string, string, error) {
@@ -60,22 +59,22 @@ func get_app(
 			break
 		}
 		switch {
-			case line == "NoDisplay=true" || line == "Hidden=true":
-				return App{}, errors.New("No visible application")
-			case line == "Terminal=true":
-				terminal = true
-			case line == "Type=Application":
-				is_app = true
-			case strings.HasPrefix(line, "Exec="):
-				exe = strings.Replace(line, "Exec=", "", 1)
-			case strings.HasPrefix(line, "Path="):
-				app.Path = strings.Replace(line, "Path=", "", 1)
-			case strings.HasPrefix(line, localized_name_key):
-				app.Name = strings.Replace(line, localized_name_key, "", 1)
-			case strings.HasPrefix(line, "Name=") && app.Name == "":
-				app.Name = strings.Replace(line, "Name=", "", 1)
+		case line == "NoDisplay=true" || line == "Hidden=true":
+			return App{}, errors.New("No visible application")
+		case line == "Terminal=true":
+			terminal = true
+		case line == "Type=Application":
+			is_app = true
+		case strings.HasPrefix(line, "Exec="):
+			exe = strings.Replace(line, "Exec=", "", 1)
+		case strings.HasPrefix(line, "Path="):
+			app.Path = strings.Replace(line, "Path=", "", 1)
+		case strings.HasPrefix(line, localized_name_key):
+			app.Name = strings.Replace(line, localized_name_key, "", 1)
+		case strings.HasPrefix(line, "Name=") && app.Name == "":
+			app.Name = strings.Replace(line, "Name=", "", 1)
 		}
-	}	
+	}
 	if terminal {
 		exe = fmt.Sprintf("%s %s", terminal_command, exe)
 	}

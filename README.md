@@ -5,7 +5,7 @@ It also supports aliases and exludes through a config and is much better that my
 
 ### Info:
 
-It's pretty fast, even faster than [j4-dmenu-desktop](https://github.com/enkore/j4-dmenu-desktop) (that's probably still the better option lol)!
+It's pretty fast, even faster than [j4-dmenu-desktop](https://github.com/enkore/j4-dmenu-desktop)!
 Like j4-dmenu-desktop, it searches `$XDG_DATA_DIRS` and `$XDG_DATA_HOME` for .desktop files (only the `applications/` folders).<br>
 I tried to conform to the [Desktop Entry Specification](https://specifications.freedesktop.org/desktop-entry-spec/1.5/) but I don't know if everything works like intended.
 
@@ -35,6 +35,8 @@ The default config looks like this (without the examples for aliases and exludes
     ]
 }
 ```
+
+You can also choose a menu and terminal command using `dmenu-desktop-go --menu <menu command> --term <terminal command>`. This has higher priority that the config file and will be used regardless of the config in the config file.
 
 The menu command is the command that gets the app list from stdin and should return one selected string.<br>
 The terminal command is the command that is run if `Terminal=true` is specified in the .desktop file.<br>

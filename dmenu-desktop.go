@@ -14,6 +14,15 @@ import (
 
 func main() {
 	args := os.Args
+	if slices.Contains(args, "--help") {
+		fmt.Println("dmenu-desktop-go")
+		fmt.Println("A .desktop application launch wrapper around dmenu-like programs that supports aliases and excludes")
+		fmt.Println("Go to GitHub too see the config options: https://github.com/technicfan/dmenu-desktop-go")
+		fmt.Println()
+		fmt.Println("Usage: dmenu-desktop-go --menu <menu command> --term <terminal command>")
+		fmt.Println("The defaults are: `dmenu -i -p Run:` and `kitty`")
+		return
+	}
 	home := os.Getenv("HOME")
 	localized_name_key := fmt.Sprintf("Name[%s]=", strings.Split(os.Getenv("LANG"), "_")[0])
 	config_home := os.Getenv("XDG_CONFIG_HOME")
@@ -52,6 +61,19 @@ func main() {
 		close(config_chan)
 	}()
 	config := <-config_chan
+
+	for i := 0; i < len(args)-1; i++ {
+		if len(args) > i+1 {
+			switch args[i] {
+			case "--menu":
+				config.MenuCommand = args[i+1]
+				args = slices.Delete(args, i, i+2)
+			case "--term":
+				config.TerminalCommand = args[i+1]
+				args = slices.Delete(args, i, i+2)
+			}
+		}
+	}
 
 	for _, file := range files {
 		wg.Add(1)
@@ -102,6 +124,7 @@ func main() {
 		fmt.Printf("Failed to parse menu command: %s", err.Error())
 		os.Exit(1)
 	}
+	fmt.Println(command_args)
 	command_args = append(command_args, args[1:]...)
 	cmd := exec.Command(command_args[0], command_args[1:]...)
 	cmd.Stdin = bytes.NewReader(stdin.Bytes())

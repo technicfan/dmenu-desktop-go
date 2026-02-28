@@ -62,7 +62,7 @@ func parse_command(
 			}
 		}
 	}
-	
+
 	splits = append(splits, builder.String())
 
 	if !strings.Contains(splits[0], "/") {

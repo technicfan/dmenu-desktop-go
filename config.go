@@ -20,6 +20,7 @@ func load_config(
 	config_chan chan<- Config,
 ) {
 	defer wg.Done()
+	var config Config
 
 	default_config := Config{
 		"dmenu -i -p Run:",
@@ -47,20 +48,19 @@ func load_config(
 			print_error(err)
 		}
 
-		config_chan <- default_config
-	}
+		config = default_config
+	} else {
+		byte_data, err := io.ReadAll(file)
+		if err != nil {
+			config_chan <- default_config
+			print_error(err)
+		}
+		defer file.Close()
 
-	byte_data, err := io.ReadAll(file)
-	if err != nil {
-		config_chan <- default_config
-		print_error(err)
-	}
-	defer file.Close()
-
-	var config Config
-	if err = json.Unmarshal(byte_data, &config); err != nil {
-		config_chan <- default_config
-		print_error(err)
+		if err = json.Unmarshal(byte_data, &config); err != nil {
+			config = default_config
+			print_error(err)
+		}
 	}
 
 	config_chan <- config
