@@ -121,7 +121,7 @@ func main() {
 
 	command_args, err := parse_command(config.MenuCommand)
 	if err != nil {
-		fmt.Printf("Failed to parse menu command: %s", err.Error())
+		fmt.Printf("Failed to parse menu command: %s\n", err.Error())
 		os.Exit(1)
 	}
 	command_args = append(command_args, args[1:]...)
@@ -129,14 +129,14 @@ func main() {
 	cmd.Stdin = bytes.NewReader(stdin.Bytes())
 	output, err := cmd.Output()
 	if err != nil {
-		fmt.Printf("Menu failed: %s", err.Error())
+		fmt.Printf("Menu failed: %s\n", err.Error())
 		os.Exit(err.(*exec.ExitError).ExitCode())
 	}
 	selected := strings.TrimSpace(string(output))
 
 	err = run(selected, config, apps_final, localized_name_key, dirs)
 	if err != nil {
-		fmt.Printf("Selected command failed: %s", err.Error())
+		fmt.Printf("Selected command failed: %s\n", err.Error())
 		os.Exit(1)
 	}
 }

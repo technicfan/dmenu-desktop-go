@@ -11,7 +11,7 @@ import (
 func print_error(
 	err error,
 ) {
-	fmt.Printf("Failed to load config: %s", err.Error())
+	fmt.Printf("Failed to load config: %s\n", err.Error())
 }
 
 func load_config(
