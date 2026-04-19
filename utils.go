@@ -14,42 +14,7 @@ import (
 
 const (
 	reserved_chars = " '\\><~|&;$*?#()`\"\t\n"
-	Hash StackSymbol = iota
-	Empty
-	Q
-	E
-	B
-	BW
 )
-
-type StackSymbol int
-
-type stack_item struct {
-	symbol StackSymbol
-	prev *stack_item
-}
-
-type Stack struct {
-	current *stack_item
-}
-
-func (stack *Stack) Push(symbol StackSymbol) {
-	stack.current = &stack_item{symbol, stack.current}
-}
-
-func (stack *Stack) Pop() StackSymbol {
-	item := stack.current
-	if item != nil {
-		stack.current = item.prev
-		return item.symbol
-	} else {
-		return Empty
-	}
-}
-
-func (stack Stack) Empty() bool {
-	return stack.current == nil
-}
 
 func parse_command(
 	command string,
@@ -60,61 +25,46 @@ func parse_command(
 
 	var splits []string
 	var builder strings.Builder
-	i_max := len(command) - 1
-	stack := Stack{&stack_item{Hash, nil}}
+	var quoted, escaped, backslash bool
 	for i, r := range command {
-		s := stack.Pop()
-		switch s {
-		case B, BW:
-		    if r != '\\' {
-				fmt.Printf("Ignoring invalid escape sequence at position %v in Exec key\n", i)
-			}
-		case Hash:
-		    if i < i_max {
-				stack.Push(Hash)
-			}
-		case Q:
-		    if r != '"' {
-				stack.Push(Q)
-			}
+		if backslash && r != '\\' {
+			fmt.Printf("Ignoring invalid escape sequence at position %v in Exec key\n", i)
+			backslash = false
+			escaped = false
 		}
 		switch {
-		case r == '"' && s != E:
-			if s != Q {
-				stack.Push(Q)
-			}
-		case r == ' ' && s != Q && s != E:
+		case r == '"' && !escaped:
+			quoted = !quoted
+		case r == ' ' && !quoted && !escaped:
 			splits = append(splits, builder.String())
 			builder.Reset()
 		case r == '\\':
-			switch s {
-			case E:
-			    stack.Push(BW)
-			case B:
-				stack.Push(E)
-			case BW:
-				builder.WriteRune(r)
-			default:
-				stack.Push(B)
+			if backslash {
+				if escaped {
+					builder.WriteRune(r)
+				}
+				escaped = !escaped
 			}
+			backslash = !backslash
 		default:
-			if s != E && s != Q && strings.Contains(reserved_chars, string(r)) {
+			reserved := strings.ContainsRune(reserved_chars, r)
+			if !quoted && !escaped && reserved {
 				return nil, fmt.Errorf("Unescaped %s at position %v in Exec key", string(r), i)
 			} else {
+				if escaped && !reserved {
+					fmt.Printf("Ignoring unknown escape sequence at position %v in Exec key\n", i)
+				}
+				escaped = false
 				builder.WriteRune(r)
 			}
 		}
 	}
 
-	if symbol := stack.Pop(); symbol != Empty && symbol != Hash {
-		switch symbol {
-		case E, B, BW:
-		    fmt.Println("Ignoring invalid escape sequence at the end of Exec key")
-		case Q:
-			return nil, errors.New("Exec key ends with unfinished quote")
-		default:
-		    return nil, errors.New("An unexpected error occurred")
-		}
+	if escaped || backslash {
+		fmt.Println("Ignoring invalid escape sequence at the end of Exec key")
+	}
+	if quoted {
+		return nil, errors.New("Exec key ends with unfinished quote")
 	}
 
 	splits = append(splits, builder.String())
