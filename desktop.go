@@ -14,12 +14,12 @@ import (
 func get_desktop_command(
 	app App,
 ) ([]string, string, error) {
-	re := regexp.MustCompile("(( )*%[fFuUi]( )*|( )*@@u %[uU] @@)")
+	re := regexp.MustCompile("( )*(@@u?)?( )*%[fFuUi]( )*(@@)?")
 	command_string := re.ReplaceAllString(app.Command, "")
 	command_string = strings.ReplaceAll(command_string, "%%", "%")
 	command_string = strings.ReplaceAll(command_string, "%k", app.File)
 
-	command, err := parse_command(command_string)
+	command, err := parse_command(strings.TrimSpace(command_string))
 	if err != nil {
 		return nil, "", err
 	}
