@@ -12,7 +12,7 @@ import (
 )
 
 func get_desktop_command(
-	app App,
+	app *App,
 ) ([]string, string, error) {
 	re := regexp.MustCompile("( )*(@@u?)?( )*%[fFuUi]( )*(@@)?")
 	command_string := re.ReplaceAllString(app.Command, "")
@@ -83,7 +83,7 @@ func get_app(
 	app.File = path
 	for _, dir := range dirs {
 		if strings.HasPrefix(path, dir) {
-			app.Id = strings.ReplaceAll(strings.Replace(path, dir, "", 1), "/", "-")
+			app.Id = strings.ReplaceAll(strings.Replace(path, dir + "/", "", 1), "/", "-")
 			break
 		}
 	}

@@ -7,7 +7,6 @@ type App struct {
 	Path    string
 	Id      string
 	Dir     string
-	Number  int
 }
 
 type Alias struct {

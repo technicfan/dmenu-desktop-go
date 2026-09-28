@@ -83,37 +83,41 @@ func parse_command(
 func remove_duplicates(
 	apps []App,
 	dirs []string,
-) map[string]App {
-	apps_by_name := make(map[string]App)
-	apps_by_id := make(map[string]App)
-	number_per_name := make(map[string]int)
+) map[string]*App {
+	apps_by_name := make(map[string]*App)
+	app_lists_by_name := make(map[string]*LinkedList[*App])
+	apps_by_id := make(map[string]*LinkedListNode[*App])
 	for i := range apps {
 		app := &apps[i]
 		add := true
 		if found, exists := apps_by_id[app.Id]; exists {
-			if slices.Index(dirs, app.Dir) < slices.Index(dirs, found.Dir) {
-				if found.Number == 0 {
-					delete(apps_by_name, found.Name)
-				} else {
-					delete(apps_by_name, fmt.Sprintf("%s (%v)", found.Name, found.Number))
-				}
-				if number_per_name[found.Name] != 0 {
-					number_per_name[found.Name] -= 1
-				}
+			if slices.Index(dirs, app.Dir) < slices.Index(dirs, found.Value.Dir) {
+				found.Remove()
 			} else {
 				add = false
 			}
 		}
 		if add {
-			if number_per_name[app.Name] == 0 {
-				apps_by_name[app.Name] = *app
-			} else {
-				apps_by_name[fmt.Sprintf("%s (%v)", app.Name, number_per_name[app.Name])] = *app
-				app.Number = number_per_name[app.Name]
+			list, exists := app_lists_by_name[app.Name]
+			if !exists {
+				list = NewLinkedList[*App]()
+				app_lists_by_name[app.Name] = list
 			}
-			apps_by_id[app.Id] = *app
-			number_per_name[app.Name] += 1
+			node := list.InsertSorted(app, func(a, b *App) int {
+				return strings.Compare(a.Id, b.Id)
+			})
+			apps_by_id[app.Id] = node
 		}
+	}
+	for name, apps := range app_lists_by_name {
+		apps.ForEach(func(i int, app *App) {
+			print(app.Id + "\n")
+			if i == 0 {
+				apps_by_name[name] = app
+			} else {
+				apps_by_name[fmt.Sprintf("%s (%v)", name, i)] = app
+			}
+		})
 	}
 
 	return apps_by_name

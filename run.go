@@ -11,7 +11,7 @@ import (
 func run(
 	name string,
 	config Config,
-	apps map[string]App,
+	apps map[string]*App,
 	localized_name_key string,
 	dirs []string,
 ) error {
@@ -26,11 +26,11 @@ func run(
 			if app, exists := apps[alias.Command]; exists {
 				command, path, err = get_desktop_command(app)
 			} else if strings.HasSuffix(alias.Command, ".desktop") {
-				app, err = get_app(alias.Command, localized_name_key, config.TerminalCommand, dirs)
+				app, err := get_app(alias.Command, localized_name_key, config.TerminalCommand, dirs)
 				if err != nil {
 					return err
 				}
-				command, path, err = get_desktop_command(app)
+				command, path, err = get_desktop_command(&app)
 			} else {
 				return errors.New("Invalid alias")
 			}
