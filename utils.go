@@ -111,7 +111,6 @@ func remove_duplicates(
 	}
 	for name, apps := range app_lists_by_name {
 		apps.ForEach(func(i int, app *App) {
-			print(app.Id + "\n")
 			if i == 0 {
 				apps_by_name[name] = app
 			} else {
